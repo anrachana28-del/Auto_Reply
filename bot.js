@@ -7,11 +7,11 @@ require('dotenv').config();
 const TOKEN      = process.env.TOKEN;
 const PORT       = process.env.PORT || 3000;
 const FB_PAGE    = process.env.FB_PAGE || 'https://www.facebook.com/YourPage';
-const GROUP_ID   = process.env.GROUP_ID;        // numeric chat ID of your Telegram group
-const ADMIN_LINK = process.env.ADMIN_LINK || 'https://t.me/YourAdminUsername'; // button only
+const ADMIN_LINK = process.env.ADMIN_LINK || 'https://t.me/RACHANA0308'; // Button only
+const ADMIN_ID   = process.env.ADMIN_ID; // numeric Telegram ID of Admin
 
-if (!TOKEN || !GROUP_ID) {
-  console.error('❌ TOKEN or GROUP_ID missing in environment variables');
+if (!TOKEN || !ADMIN_ID) {
+  console.error('❌ TOKEN or ADMIN_ID missing!');
   process.exit(1);
 }
 
@@ -67,7 +67,7 @@ bot.on('message', async (msg) => {
   repliedUsers.set(userId, Date.now());
 
   try {
-    // 1️⃣ Reply user
+    // 1️⃣ Auto-reply user
     await bot.sendMessage(
       userId,
       `សួស្តី! ${username}\nយើងខ្ញុំនឹងតបសារឆាប់ៗនេះ សូមអធ្យាស្រ័យចំពោះការឆ្លើយយឺត។\nI will reply shortly. Thank you 💙🙏`,
@@ -75,14 +75,10 @@ bot.on('message', async (msg) => {
     );
     console.log(`✅ Replied to ${username} (${userId})`);
 
-    // 2️⃣ Forward message to group
-    await bot.forwardMessage(GROUP_ID, userId, msg.message_id);
-
-    // 3️⃣ Send clickable box with user info
-    const boxText = `📨 New message from ${username}`;
-    await bot.sendMessage(GROUP_ID, boxText, USER_BUTTONS(userId));
-
-    console.log(`➡ Forwarded message + clickable box to group (${GROUP_ID})`);
+    // 2️⃣ Forward message to Admin
+    const forwardText = `📨 New message from ${username} (${userId}):\n\n${text}`;
+    await bot.sendMessage(ADMIN_ID, forwardText, USER_BUTTONS(userId));
+    console.log(`➡ Forwarded message to Admin (${ADMIN_ID})`);
 
   } catch (err) {
     console.error('❌ Error handling message:', err.message);
