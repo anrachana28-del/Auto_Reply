@@ -4,13 +4,13 @@ require('dotenv').config();
 
 // ---------------- CONFIG ----------------
 const TOKEN = process.env.TOKEN;
-const MENU_LINK = process.env.MENU_LINK;           // Web App for Menu
-const ADMIN_MENU_LINK = process.env.ADMIN_MENU_LINK; // Web App for Admin info
+const MENU_LINK = process.env.MENU_LINK;
+const ADMIN_MENU_LINK = process.env.ADMIN_MENU_LINK;
 const PORT = process.env.PORT || 3000;
-const WEBHOOK_URL = process.env.WEBHOOK_URL;      // https://yourdomain.com/bot${TOKEN}
+const WEBHOOK_URL = process.env.WEBHOOK_URL;
 
 if (!TOKEN || !MENU_LINK || !ADMIN_MENU_LINK || !WEBHOOK_URL) {
-  console.error('❌ Missing environment variables! TOKEN, MENU_LINK, ADMIN_MENU_LINK, WEBHOOK_URL required.');
+  console.error('❌ Missing required environment variables!');
   process.exit(1);
 }
 
@@ -44,7 +44,7 @@ const createButtonMenu = () => ({
 
 // ---------------- USER COOLDOWN ----------------
 const recentUsers = new Set();
-const REPLY_COOLDOWN = 30 * 1000; // 30s per user
+const REPLY_COOLDOWN = 30 * 1000; // 30s
 
 // ---------------- MESSAGE HANDLER ----------------
 bot.on('message', async (msg) => {
@@ -57,25 +57,23 @@ bot.on('message', async (msg) => {
   try {
     // Typing simulation
     await bot.sendChatAction(userId, 'typing');
-    await new Promise(resolve => setTimeout(resolve, 5000)); // 5 seconds typing
+    await new Promise(resolve => setTimeout(resolve, 5000)); // 5s typing
 
-    // Send menu with both Web App buttons
+    // Send menu with Web App buttons
     await bot.sendMessage(
       userId,
-      `សួស្តី! ${username}\nចុច "Menu" ដើម្បីបើក modal របស់ Web App Menu ឬ "View Admin" ដើម្បីបើក modal Admin info.`,
+      `សួស្តី! ${username}\nចុច "Menu" ដើម្បីបើក Web App Menu ឬ "View Admin" ដើម្បីបើក Web App Admin info.`,
       createButtonMenu()
     );
   } catch (err) {
     console.error('❌ Error sending message:', err.message);
   } finally {
-    // remove cooldown after 30s
     setTimeout(() => recentUsers.delete(userId), REPLY_COOLDOWN);
   }
 });
 
 // ---------------- CALLBACK HANDLER ----------------
-// No need to handle callback_query for Web App buttons
-// Web App button automatically opens modal
+// No need, Web App buttons automatically open modal
 
 // ---------------- POLLING ERROR HANDLER ----------------
 bot.on('polling_error', (err) => console.error('⚠️ Polling error:', err.code, err.message));
