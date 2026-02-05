@@ -1,5 +1,5 @@
 // ======================
-// Telegram Bot (Render Background Worker Ready + Webhook Cleanup)
+// Telegram Bot (Render Background Worker Ready + 5s Typing + Unlimited Replies)
 // ======================
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -9,7 +9,6 @@ require('dotenv').config();
 const TOKEN = process.env.TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
 const MENU_LINK = process.env.MENU_LINK || 'https://your-website.com/modal-page';
-const REPLY_DELAY = parseInt(process.env.REPLY_DELAY) || 3000; // ms
 
 if (!TOKEN || !ADMIN_ID) {
   console.error('❌ TOKEN or ADMIN_ID missing in .env!');
@@ -23,8 +22,6 @@ const bot = new TelegramBot(TOKEN, { polling: false });
 // ---------------------- DELETE ANY EXISTING WEBHOOK ----------------------
 bot.deleteWebHook().then(() => {
   console.log('✅ Webhook deleted (if existed). Starting polling...');
-
-  // Start polling after webhook deletion
   bot.startPolling();
 }).catch(err => {
   console.error('❌ Error deleting webhook:', err);
@@ -45,16 +42,14 @@ function createButtonMenu() {
   };
 }
 
-// ---------------------- REPLIED USERS ----------------------
-const repliedUsers = new Set();
-
 // ---------------------- TYPING ANIMATION ----------------------
-async function showTyping(chatId, delay) {
+async function showTyping(chatId) {
+  const typingDuration = 5000; // 5 seconds
   const interval = setInterval(() => {
     bot.sendChatAction(chatId, 'typing').catch(console.error);
-  }, 3000);
+  }, 3000); // repeat every 3s
 
-  await new Promise(resolve => setTimeout(resolve, delay));
+  await new Promise(resolve => setTimeout(resolve, typingDuration));
   clearInterval(interval);
 }
 
@@ -75,23 +70,18 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // Avoid spamming users
-  if (repliedUsers.has(userId)) return;
-  repliedUsers.add(userId);
-
   const username = msg.from.username ? '@' + msg.from.username : msg.from.first_name;
 
   try {
-    await showTyping(userId, REPLY_DELAY);
+    // Show typing animation for 5 seconds
+    await showTyping(userId);
 
+    // Always reply (unlimited)
     await bot.sendMessage(
       userId,
       `សួស្តី! ${username}\nClick the button below to open the Menu or contact Admin:`,
       createButtonMenu()
     );
-
-    // Auto-reset after 1 hour
-    setTimeout(() => repliedUsers.delete(userId), 60 * 60 * 1000);
 
   } catch (err) {
     console.error('❌ Error sending message:', err);
@@ -111,4 +101,4 @@ process.once('SIGTERM', () => {
   process.exit(0);
 });
 
-console.log('✅ Telegram Bot is initializing...');
+console.log('✅ Telegram Bot is initializing (typing 5s, unlimited replies)...');
