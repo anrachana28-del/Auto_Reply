@@ -1,5 +1,5 @@
 // ======================
-// Telegram Bot with Web App Menu + Typing Animation
+// Telegram Bot (Render Background Worker Ready)
 // ======================
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -17,6 +17,7 @@ if (!TOKEN || !ADMIN_ID) {
 }
 
 // ---------------------- INIT BOT ----------------------
+// Polling mode for Background Worker
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // ---------------------- BUTTON MENU ----------------------
@@ -27,11 +28,11 @@ function createButtonMenu() {
         [
           {
             text: 'Menu',
-            web_app: { url: MENU_LINK } // opens inside Telegram as modal Web App
+            web_app: { url: MENU_LINK } // opens inside Telegram
           },
           {
             text: 'View Admin',
-            url: `tg://user?id=${ADMIN_ID}` // opens chat with Admin
+            url: `tg://user?id=${ADMIN_ID}` // chat with admin
           }
         ]
       ]
@@ -46,7 +47,7 @@ const repliedUsers = new Set();
 async function showTyping(chatId, delay) {
   const interval = setInterval(() => {
     bot.sendChatAction(chatId, 'typing').catch(console.error);
-  }, 3000); // repeat typing every 3 seconds
+  }, 3000); // repeat every 3s
 
   await new Promise(resolve => setTimeout(resolve, delay));
   clearInterval(interval);
@@ -56,7 +57,7 @@ async function showTyping(chatId, delay) {
 bot.on('message', async (msg) => {
   const userId = msg.from.id;
 
-  // ---------------------- HANDLE WEB APP DATA ----------------------
+  // Handle Web App data first
   if (msg.web_app_data) {
     try {
       const data = JSON.parse(msg.web_app_data.data);
@@ -70,17 +71,17 @@ bot.on('message', async (msg) => {
       console.error('❌ Error parsing Web App data:', err);
       await bot.sendMessage(userId, '⚠️ Error processing your data.');
     }
-    return; // stop further processing
+    return;
   }
 
-  // ---------------------- NORMAL MESSAGE ----------------------
+  // Avoid spamming users
   if (repliedUsers.has(userId)) return;
   repliedUsers.add(userId);
 
   const username = msg.from.username ? '@' + msg.from.username : msg.from.first_name;
 
   try {
-    // Show typing animation for the entire delay
+    // Show typing animation for the delay
     await showTyping(userId, REPLY_DELAY);
 
     await bot.sendMessage(
@@ -89,8 +90,8 @@ bot.on('message', async (msg) => {
       createButtonMenu()
     );
 
-    // Optional: auto-reset so user can reopen menu later
-    setTimeout(() => repliedUsers.delete(userId), 60 * 60 * 1000); // 1 hour
+    // Auto-reset after 1 hour
+    setTimeout(() => repliedUsers.delete(userId), 60 * 60 * 1000);
 
   } catch (err) {
     console.error('❌ Error sending message:', err);
@@ -110,4 +111,4 @@ process.once('SIGTERM', () => {
   process.exit(0);
 });
 
-console.log('✅ Telegram Bot is running (polling mode with typing animation)...');
+console.log('✅ Telegram Bot is running (Background Worker, polling mode with typing)...');
