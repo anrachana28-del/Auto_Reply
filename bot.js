@@ -1,15 +1,16 @@
 // ======================
-// Telegram Bot with Web App Menu
+// Telegram Bot with Web App Menu using Webhook
 // ======================
 
 const TelegramBot = require('node-telegram-bot-api');
+const express = require('express');
 require('dotenv').config();
 
 // ---------------------- CONFIG ----------------------
 const TOKEN = process.env.TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
 const MENU_LINK = process.env.MENU_LINK || 'https://your-website.com/modal-page';
-const REPLY_DELAY = parseInt(process.env.REPLY_DELAY) || 3000; // delay in ms
+const PORT = process.env.PORT || 3000;
 
 if (!TOKEN || !ADMIN_ID) {
   console.error('❌ TOKEN or ADMIN_ID missing!');
@@ -17,7 +18,9 @@ if (!TOKEN || !ADMIN_ID) {
 }
 
 // ---------------------- INIT BOT ----------------------
-const bot = new TelegramBot(TOKEN, { polling: true });
+const bot = new TelegramBot(TOKEN);
+const app = express();
+app.use(express.json()); // parse JSON for webhook
 
 // ---------------------- BUTTON MENU ----------------------
 function createButtonMenu() {
@@ -40,8 +43,13 @@ function createButtonMenu() {
 }
 
 // ---------------------- REPLIED USERS ----------------------
-// Avoid spamming users
 const repliedUsers = new Set();
+
+// ---------------------- WEBHOOK ENDPOINT ----------------------
+app.post(`/bot${TOKEN}`, async (req, res) => {
+  bot.processUpdate(req.body); // pass Telegram update to bot
+  res.sendStatus(200);
+});
 
 // ---------------------- MESSAGE HANDLER ----------------------
 bot.on('message', async (msg) => {
@@ -54,13 +62,13 @@ bot.on('message', async (msg) => {
   const username = msg.from.username ? '@' + msg.from.username : msg.from.first_name;
 
   try {
-    // Show typing action
+    // Typing action
     await bot.sendChatAction(userId, 'typing');
 
     // Optional delay
-    await new Promise(resolve => setTimeout(resolve, REPLY_DELAY));
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
-    // Send message with Web App Menu
+    // Send Web App Menu
     await bot.sendMessage(
       userId,
       `សួស្តី! ${username}\nClick the button below to open the Menu or contact Admin:`,
@@ -72,19 +80,29 @@ bot.on('message', async (msg) => {
 });
 
 // ---------------------- WEB APP DATA HANDLER ----------------------
-// If your Web App sends data back to bot
-bot.on('message', (msg) => {
+bot.on('message', async (msg) => {
   if (msg.web_app_data) {
     try {
       const data = JSON.parse(msg.web_app_data.data);
       console.log('Received data from Web App:', data);
-      
-      // Reply to user if needed
-      bot.sendMessage(msg.from.id, `✅ Received your data: ${JSON.stringify(data)}`);
+
+      await bot.sendMessage(msg.from.id, `✅ Received your data: ${JSON.stringify(data)}`);
     } catch (err) {
       console.error('Error parsing Web App data:', err);
     }
   }
 });
 
-console.log('✅ Bot is running...');
+// ---------------------- START SERVER ----------------------
+app.listen(PORT, async () => {
+  console.log(`✅ Server running on port ${PORT}`);
+
+  // Set Telegram webhook
+  const webhookUrl = `https://your-domain.com/bot${TOKEN}`; // replace with your domain
+  try {
+    await bot.setWebHook(webhookUrl);
+    console.log(`✅ Webhook set: ${webhookUrl}`);
+  } catch (err) {
+    console.error('❌ Failed to set webhook:', err);
+  }
+});
