@@ -1,103 +1,49 @@
-// ================== Imports ==================
-const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
-// ================== CONFIG ==================
-const TOKEN      = process.env.TOKEN;
-const PORT       = process.env.PORT || 3000;
-const FB_PAGE    = process.env.FB_PAGE || 'https://www.facebook.com/YourPage';
-const ADMIN_LINK = process.env.ADMIN_LINK || 'https://t.me/RACHANA0308'; // Button only
-const ADMIN_ID   = process.env.ADMIN_ID; // numeric Telegram ID of Admin
+const TOKEN = process.env.TOKEN;
+const ADMIN_ID = process.env.ADMIN_ID; // for View Admin button
+const MENU_LINK = process.env.MENU_LINK || 'https://your-website.com/modal-page';
 
-if (!TOKEN || !ADMIN_ID) {
-  console.error('❌ TOKEN or ADMIN_ID missing!');
+if (!TOKEN || !ADMIN_ID || !MENU_LINK) {
+  console.error('❌ TOKEN, ADMIN_ID, or MENU_LINK missing!');
   process.exit(1);
 }
 
-// ================== EXPRESS (Health Check) ==================
-const app = express();
-app.get('/', (req, res) => res.send('✅ Telegram Bot is running'));
-app.listen(PORT, '0.0.0.0', () => console.log(`🌐 Web server running on port ${PORT}`));
-
-// ================== TELEGRAM BOT ==================
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// ================== BUTTONS ==================
-const USER_BUTTONS = (userId) => ({
-  reply_markup: {
-    inline_keyboard: [
-      [
-        { text: 'View User', url: `tg://user?id=${userId}` },
-        { text: 'Admin', url: ADMIN_LINK }
+// Create 2-button menu: Menu + View Admin
+function createButtonMenu() {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: 'Menu', url: MENU_LINK },
+          { text: 'View Admin', url: `tg://user?id=${ADMIN_ID}` }
+        ]
       ]
-    ]
-  }
-});
-
-// ================== MEMORY CONTROL ==================
-const MAX_USERS = 5000;
-const repliedUsers = new Map(); // userId -> timestamp
-
-// Cleanup every 1 hour
-setInterval(() => {
-  const now = Date.now();
-  for (const [userId, timestamp] of repliedUsers) {
-    if (now - timestamp > 12 * 60 * 60 * 1000) { // older than 12h
-      repliedUsers.delete(userId);
     }
-  }
-  console.log('🗑 Memory cleanup done. Users tracked:', repliedUsers.size);
-}, 60 * 60 * 1000);
+  };
+}
 
-// ================== MESSAGE HANDLER ==================
+// Auto-reply with "Typing..." simulation
 bot.on('message', async (msg) => {
   const userId = msg.from.id;
   const username = msg.from.username ? '@' + msg.from.username : msg.from.first_name;
-  const text = msg.text;
+  
+  // Step 1: send typing action
+  await bot.sendChatAction(userId, 'typing');
 
-  if (!text) return;
-  if (repliedUsers.has(userId)) return;
+  // Step 2: wait 10 seconds
+  await new Promise(resolve => setTimeout(resolve, 10000)); // 10000 ms = 10 seconds
 
-  // Memory control
-  if (repliedUsers.size >= MAX_USERS) {
-    const oldestKey = repliedUsers.keys().next().value;
-    repliedUsers.delete(oldestKey);
-  }
-  repliedUsers.set(userId, Date.now());
-
-  try {
-    // 1️⃣ Auto-reply user
-    await bot.sendMessage(
-      userId,
-      `សួស្តី! ${username}\nយើងខ្ញុំនឹងតបសារឆាប់ៗនេះ សូមអធ្យាស្រ័យចំពោះការឆ្លើយយឺត។\nI will reply shortly. Thank you 💙🙏`,
-      USER_BUTTONS(userId)
-    );
-    console.log(`✅ Replied to ${username} (${userId})`);
-
-    // 2️⃣ Forward message to Admin
-    const forwardText = `📨 New message from ${username} (${userId}):\n\n${text}`;
-    await bot.sendMessage(ADMIN_ID, forwardText, USER_BUTTONS(userId));
-    console.log(`➡ Forwarded message to Admin (${ADMIN_ID})`);
-
-  } catch (err) {
-    console.error('❌ Error handling message:', err.message);
-  }
+  // Step 3: send auto-reply with menu
+  await bot.sendMessage(
+    userId,
+    `សួស្តី! ${username}\nយើងខ្ញុំនឹងតបសារឆាប់ៗ។ Thank you 💙🙏`,
+    createButtonMenu()
+  );
 });
 
-// ================== ERROR HANDLING ==================
-bot.on('polling_error', (err) => {
-  console.error('⚠️ Polling error:', err.code, err.message);
-});
-
-// ================== GRACEFUL SHUTDOWN ==================
-process.on('SIGINT', () => {
-  console.log('🛑 Bot stopping...');
-  bot.stopPolling();
-  process.exit();
-});
-process.on('SIGTERM', () => {
-  console.log('🛑 Bot stopping (SIGTERM)...');
-  bot.stopPolling();
-  process.exit();
-});
+// Polling errors
+bot.on('polling_error', (err) => console.error('⚠️ Polling error:', err.code, err.message));
