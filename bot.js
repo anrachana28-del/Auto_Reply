@@ -6,11 +6,10 @@ require('dotenv').config();
 // ------------------ CONFIG ------------------
 const TOKEN = process.env.TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID; // numeric Telegram ID
-const MENU_LINK = process.env.MENU_LINK || 'https://your-website.com/modal-page';
 const PORT = process.env.PORT || 3000;
 
-if (!TOKEN || !ADMIN_ID || !MENU_LINK) {
-  console.error('❌ TOKEN, ADMIN_ID, or MENU_LINK missing!');
+if (!TOKEN || !ADMIN_ID) {
+  console.error('❌ TOKEN or ADMIN_ID missing!');
   process.exit(1);
 }
 
@@ -22,14 +21,14 @@ app.listen(PORT, () => console.log(`🌐 Web server running on port ${PORT}`));
 // ------------------ TELEGRAM BOT ------------------
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// ------------------ 2-Button Menu ------------------
+// ------------------ 2-Button Menu (Inline Modal + Admin) ------------------
 function createButtonMenu() {
   return {
     reply_markup: {
       inline_keyboard: [
         [
-          { text: 'Menu', url: MENU_LINK },
-          { text: 'View Admin', url: `tg://user?id=${ADMIN_ID}` }
+          { text: 'Menu', callback_data: 'menu_modal' },       // inline modal
+          { text: 'View Admin', url: `tg://user?id=${ADMIN_ID}` } // open admin chat
         ]
       ]
     }
@@ -51,7 +50,7 @@ bot.on('message', async (msg) => {
     // Step 3: send auto-reply with 2-button menu
     await bot.sendMessage(
       userId,
-      `សួស្តី! ${username}\nយើងខ្ញុំនឹងតបសារឆាប់ៗ។ Thank you 💙🙏`,
+      `សួស្តី! ${username}\nClick "Menu" below to see options inside Telegram or contact Admin.`,
       createButtonMenu()
     );
 
@@ -60,6 +59,33 @@ bot.on('message', async (msg) => {
   } catch (err) {
     console.error('❌ Error sending message:', err.message);
   }
+});
+
+// ------------------ Handle Callback Query for Menu ------------------
+bot.on('callback_query', async (query) => {
+  const chatId = query.message.chat.id;
+
+  if (query.data === 'menu_modal') {
+    // Show inline menu inside Telegram
+    await bot.editMessageText(
+      '📋 Menu Content:\n1. Option A\n2. Option B\n3. Option C',
+      {
+        chat_id: chatId,
+        message_id: query.message.message_id,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Close', callback_data: 'close_modal' }]
+          ]
+        }
+      }
+    );
+  } else if (query.data === 'close_modal') {
+    // Close the inline menu
+    await bot.deleteMessage(chatId, query.message.message_id);
+  }
+
+  // Hide loading circle
+  await bot.answerCallbackQuery(query.id);
 });
 
 // ------------------ Polling Errors ------------------
