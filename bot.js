@@ -1,5 +1,5 @@
 // ======================
-// Telegram Bot (Render Background Worker Ready)
+// Telegram Bot (Render Background Worker Ready + Webhook Cleanup)
 // ======================
 
 const TelegramBot = require('node-telegram-bot-api');
@@ -17,8 +17,19 @@ if (!TOKEN || !ADMIN_ID) {
 }
 
 // ---------------------- INIT BOT ----------------------
-// Polling mode for Background Worker
-const bot = new TelegramBot(TOKEN, { polling: true });
+// Create bot in non-polling mode first to delete webhook
+const bot = new TelegramBot(TOKEN, { polling: false });
+
+// ---------------------- DELETE ANY EXISTING WEBHOOK ----------------------
+bot.deleteWebHook().then(() => {
+  console.log('✅ Webhook deleted (if existed). Starting polling...');
+
+  // Start polling after webhook deletion
+  bot.startPolling();
+}).catch(err => {
+  console.error('❌ Error deleting webhook:', err);
+  process.exit(1);
+});
 
 // ---------------------- BUTTON MENU ----------------------
 function createButtonMenu() {
@@ -26,14 +37,8 @@ function createButtonMenu() {
     reply_markup: {
       inline_keyboard: [
         [
-          {
-            text: 'Menu',
-            web_app: { url: MENU_LINK } // opens inside Telegram
-          },
-          {
-            text: 'View Admin',
-            url: `tg://user?id=${ADMIN_ID}` // chat with admin
-          }
+          { text: 'Menu', web_app: { url: MENU_LINK } },
+          { text: 'View Admin', url: `tg://user?id=${ADMIN_ID}` }
         ]
       ]
     }
@@ -47,7 +52,7 @@ const repliedUsers = new Set();
 async function showTyping(chatId, delay) {
   const interval = setInterval(() => {
     bot.sendChatAction(chatId, 'typing').catch(console.error);
-  }, 3000); // repeat every 3s
+  }, 3000);
 
   await new Promise(resolve => setTimeout(resolve, delay));
   clearInterval(interval);
@@ -62,11 +67,7 @@ bot.on('message', async (msg) => {
     try {
       const data = JSON.parse(msg.web_app_data.data);
       console.log('📩 Received data from Web App:', data);
-
-      await bot.sendMessage(
-        userId,
-        `✅ Received your data: ${JSON.stringify(data)}`
-      );
+      await bot.sendMessage(userId, `✅ Received your data: ${JSON.stringify(data)}`);
     } catch (err) {
       console.error('❌ Error parsing Web App data:', err);
       await bot.sendMessage(userId, '⚠️ Error processing your data.');
@@ -81,7 +82,6 @@ bot.on('message', async (msg) => {
   const username = msg.from.username ? '@' + msg.from.username : msg.from.first_name;
 
   try {
-    // Show typing animation for the delay
     await showTyping(userId, REPLY_DELAY);
 
     await bot.sendMessage(
@@ -111,4 +111,4 @@ process.once('SIGTERM', () => {
   process.exit(0);
 });
 
-console.log('✅ Telegram Bot is running (Background Worker, polling mode with typing)...');
+console.log('✅ Telegram Bot is initializing...');
