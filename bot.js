@@ -1,104 +1,81 @@
-// ======================
-// Telegram Bot (Render Background Worker Ready + 5s Typing + Unlimited Replies)
-// ======================
-
+const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
-require('dotenv').config();
 
-// ---------------------- CONFIG ----------------------
-const TOKEN = process.env.TOKEN;
-const ADMIN_ID = process.env.ADMIN_ID;
-const MENU_LINK = process.env.MENU_LINK || 'https://your-website.com/modal-page';
+// ================== CONFIG ==================
+const TOKEN       = process.env.TOKEN;
+const PORT        = process.env.PORT || 3000;
+const FB_PAGE     = process.env.FB_PAGE;
+const ADMIN_LINK  = process.env.ADMIN_LINK;
+const WEB_APP_URL = process.env.WEB_APP_URL; // ⭐ Telegram Web App URL
 
-if (!TOKEN || !ADMIN_ID) {
-  console.error('❌ TOKEN or ADMIN_ID missing in .env!');
+if (!TOKEN) {
+  console.error('❌ TOKEN is missing');
   process.exit(1);
 }
 
-// ---------------------- INIT BOT ----------------------
-// Create bot in non-polling mode first to delete webhook
-const bot = new TelegramBot(TOKEN, { polling: false });
+// ================== EXPRESS ==================
+const app = express();
 
-// ---------------------- DELETE ANY EXISTING WEBHOOK ----------------------
-bot.deleteWebHook().then(() => {
-  console.log('✅ Webhook deleted (if existed). Starting polling...');
-  bot.startPolling();
-}).catch(err => {
-  console.error('❌ Error deleting webhook:', err);
-  process.exit(1);
+app.get('/', (req, res) => {
+  res.send('✅ Telegram Bot is running');
 });
 
-// ---------------------- BUTTON MENU ----------------------
-function createButtonMenu() {
-  return {
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: 'Menu', web_app: { url: MENU_LINK } },
-          { text: 'View Admin', url: `tg://user?id=${ADMIN_ID}` }
-        ]
+app.listen(PORT, () => {
+  console.log(`🌐 Web server running on port ${PORT}`);
+});
+
+// ================== TELEGRAM BOT ==================
+const bot = new TelegramBot(TOKEN, { polling: true });
+
+// Delay helper
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// ================== BUTTONS ==================
+const BUTTONS = {
+  reply_markup: {
+    inline_keyboard: [
+      [
+        {
+          text: '🌐 Open App',
+          web_app: { url: WEB_APP_URL } // ✅ MODAL WEB APP
+        }
+      ],
+      [
+        { text: '📘 Facebook Page', url: FB_PAGE },
+        { text: '👤 Admin', url: ADMIN_LINK }
       ]
-    }
-  };
-}
-
-// ---------------------- TYPING ANIMATION ----------------------
-async function showTyping(chatId) {
-  const typingDuration = 5000; // 5 seconds
-  const interval = setInterval(() => {
-    bot.sendChatAction(chatId, 'typing').catch(console.error);
-  }, 3000); // repeat every 3s
-
-  await new Promise(resolve => setTimeout(resolve, typingDuration));
-  clearInterval(interval);
-}
-
-// ---------------------- MESSAGE HANDLER ----------------------
-bot.on('message', async (msg) => {
-  const userId = msg.from.id;
-
-  // Handle Web App data first
-  if (msg.web_app_data) {
-    try {
-      const data = JSON.parse(msg.web_app_data.data);
-      console.log('📩 Received data from Web App:', data);
-      await bot.sendMessage(userId, `✅ Received your data: ${JSON.stringify(data)}`);
-    } catch (err) {
-      console.error('❌ Error parsing Web App data:', err);
-      await bot.sendMessage(userId, '⚠️ Error processing your data.');
-    }
-    return;
+    ]
   }
+};
 
-  const username = msg.from.username ? '@' + msg.from.username : msg.from.first_name;
+// ================== MESSAGE HANDLER ==================
+bot.on('message', async (msg) => {
+  if (!msg.text) return;
+
+  const chatId = msg.chat.id;
+  const username = msg.from.username
+    ? '@' + msg.from.username
+    : msg.from.first_name;
 
   try {
-    // Show typing animation for 5 seconds
-    await showTyping(userId);
+    // 1️⃣ Typing...
+    await bot.sendChatAction(chatId, 'typing');
 
-    // Always reply (unlimited)
+    // 2️⃣ Wait 5s
+    await delay(5000);
+
+    // 3️⃣ Reply
     await bot.sendMessage(
-      userId,
-      `សួស្តី! ${username}\nClick the button below to open the Menu or contact Admin:`,
-      createButtonMenu()
+      chatId,
+      `សួស្តី! ${username} 👋
+សូមចុច Open App ដើម្បីបើក App ក្នុង Telegram 📱
+Thank you 💙🙏`,
+      BUTTONS
     );
 
+    console.log(`✅ Replied to ${username}`);
+
   } catch (err) {
-    console.error('❌ Error sending message:', err);
+    console.error('❌ Error:', err.message);
   }
 });
-
-// ---------------------- GRACEFUL SHUTDOWN ----------------------
-process.once('SIGINT', () => {
-  console.log('🛑 SIGINT received, stopping bot...');
-  bot.stopPolling();
-  process.exit(0);
-});
-
-process.once('SIGTERM', () => {
-  console.log('🛑 SIGTERM received, stopping bot...');
-  bot.stopPolling();
-  process.exit(0);
-});
-
-console.log('✅ Telegram Bot is initializing (typing 5s, unlimited replies)...');
