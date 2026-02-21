@@ -1,3 +1,4 @@
+// ================== IMPORTS ==================
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 
@@ -6,7 +7,6 @@ const TOKEN       = process.env.TOKEN;
 const PORT        = process.env.PORT || 3000;
 const FB_PAGE     = process.env.FB_PAGE;
 const ADMIN_LINK  = process.env.ADMIN_LINK;
-const WEB_APP_URL = process.env.WEB_APP_URL;
 const REPLY_DELAY = Number(process.env.REPLY_DELAY) || 5000; // default 5s
 
 if (!TOKEN) {
@@ -29,9 +29,6 @@ const delay = (ms) => new Promise(r => setTimeout(r, ms));
 const BUTTONS = {
   reply_markup: {
     inline_keyboard: [
-      // Web App Modal button (optional)
-      ...(WEB_APP_URL ? [[{ text: '🌐 Open App', web_app: { url: WEB_APP_URL } }]] : []),
-      // Facebook + Admin buttons
       [
         ...(FB_PAGE ? [{ text: '📘 Facebook Page', url: FB_PAGE }] : []),
         ...(ADMIN_LINK ? [{ text: '👤 Admin', url: ADMIN_LINK }] : [])
@@ -40,18 +37,27 @@ const BUTTONS = {
   }
 };
 
+// ================== ACTIVE CHAT TRACKER ==================
+const activeChats = new Set();
+
 // ================== MESSAGE HANDLER ==================
 bot.on('message', async (msg) => {
+  // Only respond to text messages
   if (!msg.text) return;
 
   const chatId = msg.chat.id;
+
+  // Prevent spamming if user sends multiple messages fast
+  if (activeChats.has(chatId)) return;
+  activeChats.add(chatId);
+
   const username = msg.from.username ? '@' + msg.from.username : msg.from.first_name;
 
   try {
     // 1️⃣ Show typing
     await bot.sendChatAction(chatId, 'typing');
 
-    // 2️⃣ Wait delay from ENV
+    // 2️⃣ Wait delay
     await delay(REPLY_DELAY);
 
     // 3️⃣ Send reply
@@ -66,6 +72,9 @@ I will reply shortly. Thank you 💙🙏`,
     console.log(`✅ Replied to ${username}`);
 
   } catch (err) {
-    console.error('❌ Error sending message:', err.message);
+    console.error('❌ Error sending message:', err);
+  } finally {
+    // Allow next message from user to trigger reply
+    activeChats.delete(chatId);
   }
 });
