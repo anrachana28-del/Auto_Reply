@@ -6,7 +6,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const TOKEN       = process.env.TOKEN;
 const PORT        = process.env.PORT || 3000;
 const FB_PAGE     = process.env.FB_PAGE;
-const ADMIN_LINK  = process.env.ADMIN_LINK;
+const ADMIN_LINK  = process.env.ADMIN_LINK; // link for mini Telegram app
 const REPLY_DELAY = Number(process.env.REPLY_DELAY) || 5000; // default 5s
 
 if (!TOKEN) {
@@ -31,7 +31,7 @@ const BUTTONS = {
     inline_keyboard: [
       [
         ...(FB_PAGE ? [{ text: '📘 Facebook Page', url: FB_PAGE }] : []),
-        ...(ADMIN_LINK ? [{ text: '👤 Admin', url: ADMIN_LINK }] : [])
+        ...(ADMIN_LINK ? [{ text: '👤 Admin', web_app: { url: ADMIN_LINK } }] : [])
       ]
     ]
   }
