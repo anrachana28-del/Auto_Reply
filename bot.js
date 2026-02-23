@@ -1,4 +1,4 @@
-// ================== IMPORTS ==================
+require('dotenv').config();
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 
@@ -6,24 +6,29 @@ const TelegramBot = require('node-telegram-bot-api');
 const TOKEN       = process.env.TOKEN;
 const PORT        = process.env.PORT || 3000;
 const FB_PAGE     = process.env.FB_PAGE;
-const ADMIN_LINK  = process.env.ADMIN_LINK; // link for mini Telegram app
-const REPLY_DELAY = Number(process.env.REPLY_DELAY) || 5000; // default 5s
+const ADMIN_LINK  = process.env.ADMIN_LINK;
 
 if (!TOKEN) {
   console.error('❌ TOKEN is missing');
   process.exit(1);
 }
 
-// ================== EXPRESS (Health Check) ==================
+// ================== EXPRESS ==================
 const app = express();
 app.get('/', (req, res) => res.send('✅ Telegram Bot is running'));
-app.listen(PORT, () => console.log(`🌐 Web server running on port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`🌐 Web server running on port ${PORT}`)
+);
 
 // ================== TELEGRAM BOT ==================
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// Delay helper
+// ================== HELPERS ==================
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
+
+// ================== 24H CONTROL ==================
+const repliedUsers = new Map(); // key => lastReplyTime
+const REPLY_COOLDOWN = 24 * 60 * 60 * 1000; // 24 hours
 
 // ================== BUTTONS ==================
 const BUTTONS = {
@@ -31,50 +36,83 @@ const BUTTONS = {
     inline_keyboard: [
       [
         ...(FB_PAGE ? [{ text: '📘 Facebook Page', url: FB_PAGE }] : []),
-        ...(ADMIN_LINK ? [{ text: '👤 Admin', web_app: { url: ADMIN_LINK } }] : [])
+        ...(ADMIN_LINK ? [{ text: '👤 Admin', url: ADMIN_LINK }] : [])
       ]
     ]
   }
 };
 
-// ================== ACTIVE CHAT TRACKER ==================
-const activeChats = new Set();
-
 // ================== MESSAGE HANDLER ==================
 bot.on('message', async (msg) => {
-  // Only respond to text messages
   if (!msg.text) return;
+  if (msg.from.is_bot) return;
 
-  const chatId = msg.chat.id;
+  const chatId   = msg.chat.id;
+  const chatType = msg.chat.type; // private | group | supergroup
+  const userId   = msg.from.id;
 
-  // Prevent spamming if user sends multiple messages fast
-  if (activeChats.has(chatId)) return;
-  activeChats.add(chatId);
+  // 🔐 GROUP CHECKS
+  if (chatType === 'group' || chatType === 'supergroup') {
+    try {
+      // 1️⃣ Check bot is admin
+      const botMe = await bot.getMe();
+      const botMember = await bot.getChatMember(chatId, botMe.id);
+      if (
+        botMember.status !== 'administrator' &&
+        botMember.status !== 'creator'
+      ) {
+        return; // ❌ bot not admin
+      }
 
-  const username = msg.from.username ? '@' + msg.from.username : msg.from.first_name;
+      // 2️⃣ Ignore owner/admin user
+      const userMember = await bot.getChatMember(chatId, userId);
+      if (
+        userMember.status === 'administrator' ||
+        userMember.status === 'creator'
+      ) {
+        return; // ❌ ignore owner/admin
+      }
+
+    } catch (e) {
+      console.error('❌ Group check error:', e.message);
+      return;
+    }
+  }
+
+  // 🕒 24h per-user check
+  const key = `${chatId}:${userId}`;
+  const now = Date.now();
+  const lastReply = repliedUsers.get(key);
+
+  if (lastReply && now - lastReply < REPLY_COOLDOWN) {
+    return; // ❌ within 24h
+  }
+
+  const username = msg.from.username
+    ? '@' + msg.from.username
+    : msg.from.first_name;
 
   try {
-    // 1️⃣ Show typing
+    // ⌨️ Typing immediately
     await bot.sendChatAction(chatId, 'typing');
 
-    // 2️⃣ Wait delay
-    await delay(REPLY_DELAY);
+    // ⏳ Wait 4 seconds
+    await delay(4000);
 
-    // 3️⃣ Send reply
+    // 📩 Send reply with buttons
     await bot.sendMessage(
       chatId,
-      `សួស្តី! ${username} 👋
-យើងខ្ញុំនឹងតបសារឆាប់ៗនេះ សូមអធ្យាស្រ័យចំពោះការឆ្លើយយឺត។
-I will reply shortly. Thank you 💙🙏`,
+`សួស្តី! ${username} 👋
+យើងខ្ញុំនឹងតបសារឆាប់ៗនេះ សូមអធ្យាស្រ័យចំពោះការឆ្លើយយឺត។ I will reply shortly. Thank you 💙🙏`,
       BUTTONS
     );
 
-    console.log(`✅ Replied to ${username}`);
+    // ✅ Save reply time
+    repliedUsers.set(key, now);
+
+    console.log(`✅ Replied to ${username} in ${chatType}`);
 
   } catch (err) {
-    console.error('❌ Error sending message:', err);
-  } finally {
-    // Allow next message from user to trigger reply
-    activeChats.delete(chatId);
+    console.error('❌ Error:', err.message);
   }
 });
